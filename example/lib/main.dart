@@ -16,6 +16,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  String? _lastReminderId;
+
   /// Add a reminder to the device's Reminders app.
   ///
   /// [title] is the title of the reminder.
@@ -24,18 +26,38 @@ class _MyAppState extends State<MyApp> {
   /// [frequency] is the frequency of the reminder.
   Future<void> addToReminder() async {
     try {
-      final success = await InAppReminder.addReminder(
+      final id = await InAppReminder.addReminder(
         title: 'Title for Reminder',
         notes: 'Notes for the reminder',
         frequency: ReminderFrequency.daily,
       );
-      if (success) {
-        log('Reminder added successfully');
+      if (id != null) {
+        setState(() {
+          _lastReminderId = id;
+        });
+        log('Reminder added successfully with ID: $id');
       } else {
         log('Failed to add reminder');
       }
     } catch (e) {
       log('Error adding reminder: $e');
+    }
+  }
+
+  Future<void> removeReminder() async {
+    if (_lastReminderId == null) return;
+    try {
+      final success = await InAppReminder.removeReminder(_lastReminderId!);
+      if (success) {
+        setState(() {
+          _lastReminderId = null;
+        });
+        log('Reminder removed successfully');
+      } else {
+        log('Failed to remove reminder');
+      }
+    } catch (e) {
+      log('Error removing reminder: $e');
     }
   }
 
@@ -45,9 +67,23 @@ class _MyAppState extends State<MyApp> {
       home: Scaffold(
         appBar: AppBar(title: const Text('In-App Reminder Example')),
         body: Center(
-          child: ElevatedButton(
-            onPressed: addToReminder,
-            child: const Text("Add iOS Reminder"),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: addToReminder,
+                child: const Text("Add iOS Reminder"),
+              ),
+              if (_lastReminderId != null) ...[
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: removeReminder,
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red, foregroundColor: Colors.white),
+                  child: const Text("Remove Last Reminder"),
+                ),
+              ],
+            ],
           ),
         ),
       ),

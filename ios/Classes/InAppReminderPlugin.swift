@@ -10,9 +10,20 @@ public class InAppReminderPlugin: NSObject, FlutterPlugin {
     registrar.addMethodCallDelegate(instance, channel: channel)
   }
 
-public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    guard call.method == "addReminder",
-          let args = call.arguments as? [String: Any],
+  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let eventStore = EKEventStore()
+    switch call.method {
+    case "addReminder":
+      addReminder(call: call, eventStore: eventStore, result: result)
+    case "removeReminder":
+      removeReminder(call: call, eventStore: eventStore, result: result)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func addReminder(call: FlutterMethodCall, eventStore: EKEventStore, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
           let title = args["title"] as? String else {
       result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing or invalid title", details: nil))
       return
@@ -20,7 +31,6 @@ public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let notes = args["notes"] as? String
     let dateTimeString = args["dateTime"] as? String
     let frequencyString = args["frequency"] as? String
-    let eventStore = EKEventStore()
 
     eventStore.requestAccess(to: .reminder) { _, error in
       if let error = error {
@@ -57,11 +67,11 @@ public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
           if let frequencyString = frequencyString {
             let frequency: EKRecurrenceFrequency?
             switch frequencyString {
-              case "daily": frequency = .daily
-              case "weekly": frequency = .weekly
-              case "monthly": frequency = .monthly
-              case "yearly": frequency = .yearly
-              default: frequency = nil
+            case "daily": frequency = .daily
+            case "weekly": frequency = .weekly
+            case "monthly": frequency = .monthly
+            case "yearly": frequency = .yearly
+            default: frequency = nil
             }
 
             if let frequency = frequency {
@@ -77,9 +87,35 @@ public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
 
       do {
         try eventStore.save(reminder, commit: true)
-        result("Reminder added")
+        result(reminder.calendarItemIdentifier)
       } catch {
         result(FlutterError(code: "SAVE_ERROR", message: error.localizedDescription, details: nil))
+      }
+    }
+  }
+
+  private func removeReminder(call: FlutterMethodCall, eventStore: EKEventStore, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
+          let identifier = args["identifier"] as? String else {
+      result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing or invalid identifier", details: nil))
+      return
+    }
+
+    eventStore.requestAccess(to: .reminder) { _, error in
+      if let error = error {
+        result(FlutterError(code: "PERMISSION_ERROR", message: error.localizedDescription, details: nil))
+        return
+      }
+
+      if let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder {
+        do {
+          try eventStore.remove(reminder, commit: true)
+          result(true)
+        } catch {
+          result(FlutterError(code: "REMOVE_ERROR", message: error.localizedDescription, details: nil))
+        }
+      } else {
+        result(FlutterError(code: "NOT_FOUND", message: "Reminder not found", details: nil))
       }
     }
   }
