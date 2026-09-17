@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import EventKit
+import CoreLocation
 
 
 public class InAppReminderPlugin: NSObject, FlutterPlugin {
@@ -15,8 +16,14 @@ public class InAppReminderPlugin: NSObject, FlutterPlugin {
     switch call.method {
     case "addReminder":
       addReminder(call: call, eventStore: eventStore, result: result)
+    case "addReminderWithLocation":
+      addReminderWithLocation(call: call, eventStore: eventStore, result: result)
     case "removeReminder":
       removeReminder(call: call, eventStore: eventStore, result: result)
+    case "hasReminderPermission":
+      hasReminderPermission(result: result)
+    case "requestReminderPermission":
+      requestReminderPermission(eventStore: eventStore, result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -94,6 +101,57 @@ public class InAppReminderPlugin: NSObject, FlutterPlugin {
     }
   }
 
+  private func addReminderWithLocation(call: FlutterMethodCall, eventStore: EKEventStore, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
+          let title = args["title"] as? String,
+          let latitude = args["latitude"] as? Double,
+          let longitude = args["longitude"] as? Double else {
+      result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing title, latitude or longitude", details: nil))
+      return
+    }
+
+    let proximityString = args["proximity"] as? String
+    let radius = args["radius"] as? Double ?? 100.0
+
+    eventStore.requestAccess(to: .reminder) { granted, error in
+      if let error = error {
+        result(FlutterError(code: "PERMISSION_ERROR", message: error.localizedDescription, details: nil))
+        return
+      }
+
+      if !granted {
+        result(FlutterError(code: "PERMISSION_DENIED", message: "Reminder permission denied", details: nil))
+        return
+      }
+
+      let reminder = EKReminder(eventStore: eventStore)
+      reminder.title = title
+      reminder.calendar = eventStore.defaultCalendarForNewReminders()
+
+      let location = EKStructuredLocation(title: title)
+      location.geoLocation = CLLocation(latitude: latitude, longitude: longitude)
+      location.radius = radius
+
+      let alarm = EKAlarm()
+      alarm.structuredLocation = location
+
+      if proximityString == "leave" {
+        alarm.proximity = .leave
+      } else {
+        alarm.proximity = .enter
+      }
+
+      reminder.addAlarm(alarm)
+
+      do {
+        try eventStore.save(reminder, commit: true)
+        result(reminder.calendarItemIdentifier)
+      } catch {
+        result(FlutterError(code: "SAVE_ERROR", message: error.localizedDescription, details: nil))
+      }
+    }
+  }
+
   private func removeReminder(call: FlutterMethodCall, eventStore: EKEventStore, result: @escaping FlutterResult) {
     guard let args = call.arguments as? [String: Any],
           let identifier = args["identifier"] as? String else {
@@ -117,6 +175,21 @@ public class InAppReminderPlugin: NSObject, FlutterPlugin {
       } else {
         result(FlutterError(code: "NOT_FOUND", message: "Reminder not found", details: nil))
       }
+    }
+  }
+
+  private func hasReminderPermission(result: @escaping FlutterResult) {
+    let status = EKEventStore.authorizationStatus(for: .reminder)
+    result(status == .authorized)
+  }
+
+  private func requestReminderPermission(eventStore: EKEventStore, result: @escaping FlutterResult) {
+    eventStore.requestAccess(to: .reminder) { granted, error in
+      if let error = error {
+        result(FlutterError(code: "PERMISSION_ERROR", message: error.localizedDescription, details: nil))
+        return
+      }
+      result(granted)
     }
   }
 }

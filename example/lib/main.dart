@@ -17,6 +17,28 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String? _lastReminderId;
+  bool _hasPermission = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    final hasPermission = await InAppReminder.hasReminderPermission();
+    setState(() {
+      _hasPermission = hasPermission;
+    });
+  }
+
+  Future<void> _requestPermission() async {
+    final granted = await InAppReminder.requestReminderPermission();
+    setState(() {
+      _hasPermission = granted;
+    });
+    log('Permission granted: $granted');
+  }
 
   /// Add a reminder to the device's Reminders app.
   ///
@@ -41,6 +63,29 @@ class _MyAppState extends State<MyApp> {
       }
     } catch (e) {
       log('Error adding reminder: $e');
+    }
+  }
+
+  Future<void> addLocationReminder() async {
+    try {
+      // Coordinates for Apple Park
+      final id = await InAppReminder.addReminderWithLocation(
+        title: 'Arrive at Apple Park',
+        latitude: 37.3349,
+        longitude: -122.0090,
+        proximity: ReminderProximity.enter,
+        radius: 200.0,
+      );
+      if (id != null) {
+        setState(() {
+          _lastReminderId = id;
+        });
+        log('Location reminder added with ID: $id');
+      } else {
+        log('Failed to add location reminder');
+      }
+    } catch (e) {
+      log('Error adding location reminder: $e');
     }
   }
 
@@ -70,9 +115,22 @@ class _MyAppState extends State<MyApp> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Text('Has Permission: $_hasPermission'),
+              const SizedBox(height: 10),
+              if (!_hasPermission)
+                ElevatedButton(
+                  onPressed: _requestPermission,
+                  child: const Text("Request Permission"),
+                ),
+              const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: addToReminder,
+                onPressed: _hasPermission ? addToReminder : null,
                 child: const Text("Add iOS Reminder"),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _hasPermission ? addLocationReminder : null,
+                child: const Text("Add Location Reminder (Apple Park)"),
               ),
               if (_lastReminderId != null) ...[
                 const SizedBox(height: 20),

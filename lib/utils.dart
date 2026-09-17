@@ -7,6 +7,12 @@
 /// [yearly] is the frequency of the reminder.
 enum ReminderFrequency { none, daily, weekly, monthly, yearly }
 
+/// Enum for the proximity of the location-based reminder.
+///
+/// [enter] triggers when entering the location.
+/// [leave] triggers when leaving the location.
+enum ReminderProximity { enter, leave }
+
 /// Extension for the ReminderFrequency enum.
 ///
 /// [name] is the name of the reminder frequency.

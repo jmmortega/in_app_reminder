@@ -46,6 +46,38 @@ class InAppReminder {
     }
   }
 
+  /// Add a reminder with a location trigger (geofencing).
+  ///
+  /// [title] is the title of the reminder.
+  /// [latitude] and [longitude] define the center of the trigger area.
+  /// [proximity] defines if the trigger should be on entering or leaving the area.
+  /// [radius] is the radius of the trigger area in meters.
+  /// Returns the identifier of the added reminder, or null if it failed.
+  static Future<String?> addReminderWithLocation({
+    required String title,
+    required double latitude,
+    required double longitude,
+    ReminderProximity proximity = ReminderProximity.enter,
+    double radius = 100.0,
+  }) async {
+    try {
+      final String? identifier = await _channel.invokeMethod<String>(
+        'addReminderWithLocation',
+        {
+          'title': title,
+          'latitude': latitude,
+          'longitude': longitude,
+          'proximity': proximity.name,
+          'radius': radius,
+        },
+      );
+      return identifier;
+    } catch (e) {
+      log('Failed to add location-based reminder: $e');
+      return null;
+    }
+  }
+
   /// Remove a reminder from the device's Reminders app.
   ///
   /// [identifier] is the identifier of the reminder to remove.
@@ -58,6 +90,32 @@ class InAppReminder {
       return result ?? false;
     } catch (e) {
       log('Failed to remove reminder: $e');
+      return false;
+    }
+  }
+
+  /// Check if the app has permission to access reminders.
+  ///
+  /// Returns true if the permission is granted, false otherwise.
+  static Future<bool> hasReminderPermission() async {
+    try {
+      final bool? hasPermission = await _channel.invokeMethod<bool>('hasReminderPermission');
+      return hasPermission ?? false;
+    } catch (e) {
+      log('Failed to check reminder permission: $e');
+      return false;
+    }
+  }
+
+  /// Request permission to access reminders.
+  ///
+  /// Returns true if the permission was granted, false otherwise.
+  static Future<bool> requestReminderPermission() async {
+    try {
+      final bool? granted = await _channel.invokeMethod<bool>('requestReminderPermission');
+      return granted ?? false;
+    } catch (e) {
+      log('Failed to request reminder permission: $e');
       return false;
     }
   }
